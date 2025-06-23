@@ -1,1 +1,505 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تحداني – لعبة الأسئلة</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            direction: rtl; /* Ensure right-to-left direction for Arabic text */
+        }
+        /* Custom styles for message box */
+        .message-box-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        .message-box-content {
+            background-color: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
+    <!-- React CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel CDN for JSX transformation in browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, doc, setDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // Global variables for Firebase config (these would be provided by your Canvas environment)
+        // For local testing, you might need to define them if not already present
+        window.__firebase_config = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+        window.__app_id = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        window.__initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        window.firebase = {
+            initializeApp,
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            onAuthStateChanged,
+            getFirestore,
+            doc,
+            setDoc,
+            collection,
+            addDoc
+        };
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, setDoc, collection, addDoc } = window.firebase;
+
+        // Questions data - You can add many more questions here for 100-200 levels
+        const allQuestions = [
+            {
+                id: 1,
+                question: "ما هي عاصمة مصر؟",
+                options: ["القاهرة", "الإسكندرية", "أسوان", "الأقصر"],
+                answer: "القاهرة",
+                category: "ثقافة عامة",
+                difficulty: "سهل",
+                explanation: "القاهرة هي أكبر مدينة في مصر وعاصمتها."
+            },
+            {
+                id: 2,
+                question: "من هو آخر الأنبياء في الإسلام؟",
+                options: ["موسى", "عيسى", "محمد", "إبراهيم"],
+                answer: "محمد",
+                category: "دين",
+                difficulty: "سهل",
+                explanation: "النبي محمد (صلى الله عليه وسلم) هو خاتم الأنبياء والمرسلين."
+            },
+            {
+                id: 3,
+                question: "في أي قارة تقع البرازيل؟",
+                options: ["أوروبا", "آسيا", "أفريقيا", "أمريكا الجنوبية"],
+                answer: "أمريكا الجنوبية",
+                category: "جغرافيا",
+                difficulty: "سهل",
+                explanation: "البرازيل هي أكبر دولة في قارة أمريكا الجنوبية."
+            },
+            {
+                id: 4,
+                question: "ما هو أكبر كوكب في المجموعة الشمسية؟",
+                options: ["الأرض", "المريخ", "المشتري", "زحل"],
+                answer: "المشتري",
+                category: "علوم",
+                difficulty: "متوسط",
+                explanation: "المشتري هو أضخم كوكب في نظامنا الشمسي."
+            },
+            {
+                id: 5,
+                question: "من كتب مسرحية 'هاملت'؟",
+                options: ["شكسبير", "موليير", "غوته", "ديكنز"],
+                answer: "شكسبير",
+                category: "أدب",
+                difficulty: "متوسط",
+                explanation: "ويليام شكسبير هو الكاتب الإنجليزي الشهير الذي ألف مسرحية 'هاملت'."
+            },
+            {
+                id: 6,
+                question: "ما هو أطول نهر في العالم؟",
+                options: ["نهر النيل", "نهر الأمازون", "نهر اليانغتسي", "نهر المسيسيبي"],
+                answer: "نهر النيل",
+                category: "جغرافيا",
+                difficulty: "متوسط",
+                explanation: "يعتبر نهر النيل تقليدياً أطول نهر في العالم."
+            },
+            {
+                id: 7,
+                question: "ما هي العملة الرسمية لليابان؟",
+                options: ["اليوان", "الوون", "الين", "الروبية"],
+                answer: "الين",
+                category: "ثقافة عامة",
+                difficulty: "متوسط",
+                explanation: "الين الياباني هو العملة الرسمية لليابان."
+            },
+            {
+                id: 8,
+                question: "كم عدد أركان الإسلام؟",
+                options: ["ثلاثة", "أربعة", "خمسة", "ستة"],
+                answer: "خمسة",
+                category: "دين",
+                difficulty: "سهل",
+                explanation: "أركان الإسلام هي: الشهادتان، إقامة الصلاة، إيتاء الزكاة، صوم رمضان، وحج البيت لمن استطاع إليه سبيلاً."
+            },
+            {
+                id: 9,
+                question: "ما هي أصغر قارة في العالم؟",
+                options: ["أوروبا", "أستراليا", "أفريقيا", "آسيا"],
+                answer: "أستراليا",
+                category: "جغرافيا",
+                difficulty: "متوسط",
+                explanation: "أستراليا هي أصغر القارات السبع من حيث المساحة."
+            },
+            {
+                id: 10,
+                question: "ما هو الغاز الأكثر وفرة في الغلاف الجوي للأرض؟",
+                options: ["الأكسجين", "ثاني أكسيد الكربون", "النيتروجين", "الأرجون"],
+                answer: "النيتروجين",
+                category: "علوم",
+                difficulty: "متوسط",
+                explanation: "يشكل النيتروجين حوالي 78% من الغلاف الجوي للأرض."
+            },
+            {
+                id: 11,
+                question: "من هو مكتشف قانون الجاذبية؟",
+                options: ["ألبرت أينشتاين", "إسحاق نيوتن", "جاليليو جاليلي", "نيكولا تسلا"],
+                answer: "إسحاق نيوتن",
+                category: "علوم",
+                difficulty: "صعب",
+                explanation: "إسحاق نيوتن هو من صاغ قوانين الحركة وقانون الجاذبية الكونية."
+            },
+            {
+                id: 12,
+                question: "في أي عام سقط جدار برلين؟",
+                options: ["1985", "1989", "1991", "1995"],
+                answer: "1989",
+                category: "تاريخ",
+                difficulty: "صعب",
+                explanation: "سقط جدار برلين في 9 نوفمبر 1989، مما مهد الطريق لتوحيد ألمانيا."
+            },
+            {
+                id: 13,
+                question: "ما هو الحيوان الذي يُعرف بـ 'سفينة الصحراء'؟",
+                options: ["الحصان", "الجمل", "الفيل", "الأسد"],
+                answer: "الجمل",
+                category: "ثقافة عامة",
+                difficulty: "سهل",
+                explanation: "الجمل معروف بقدرته على تحمل ظروف الصحراء القاسية."
+            },
+            {
+                id: 14,
+                question: "كم عدد الدول الأعضاء في الأمم المتحدة؟",
+                options: ["190", "193", "195", "200"],
+                answer: "193",
+                category: "ثقافة عامة",
+                difficulty: "صعب",
+                explanation: "تضم الأمم المتحدة 193 دولة عضو اعتبارًا من عام 2024."
+            },
+            {
+                id: 15,
+                question: "ما هي السورة التي لا تبدأ بالبسملة في القرآن الكريم؟",
+                options: ["الفاتحة", "البقرة", "التوبة", "الإخلاص"],
+                answer: "التوبة",
+                category: "دين",
+                difficulty: "متوسط",
+                explanation: "سورة التوبة هي السورة الوحيدة في القرآن الكريم التي لا تبدأ بالبسملة."
+            }
+        ];
+
+        // Shuffle questions to randomize order for levels
+        const shuffledQuestions = allQuestions.sort(() => Math.random() - 0.5);
+
+        function App() {
+            const [currentPage, setCurrentPage] = useState('start'); // 'start', 'game', 'end'
+            const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+            const [score, setScore] = useState(0);
+            const [selectedOption, setSelectedOption] = useState(null);
+            const [feedback, setFeedback] = useState('');
+            const [showExplanation, setShowExplanation] = useState(false);
+            const [isAnswered, setIsAnswered] = useState(false); // To prevent multiple selections
+            const [userName, setUserName] = useState('');
+            const [userId, setUserId] = useState('');
+            const [message, setMessage] = useState(''); // For custom alert messages
+            const [showMessageBox, setShowMessageBox] = useState(false); // To control message box visibility
+
+            // Firebase setup
+            const db = useRef(null);
+            const auth = useRef(null);
+            const authReady = useRef(false);
+
+            useEffect(() => {
+                // Initialize Firebase and authenticate
+                const initFirebase = async () => {
+                    try {
+                        const firebaseConfig = JSON.parse(window.__firebase_config);
+                        const appId = window.__app_id;
+                        const initialAuthToken = window.__initial_auth_token;
+
+                        if (Object.keys(firebaseConfig).length > 0) { // Check if config is not empty
+                            const app = initializeApp(firebaseConfig);
+                            auth.current = getAuth(app);
+                            db.current = getFirestore(app);
+
+                            onAuthStateChanged(auth.current, async (user) => {
+                                if (user) {
+                                    setUserId(user.uid);
+                                    authReady.current = true;
+                                    const userRef = doc(db.current, `artifacts/${appId}/users/${user.uid}/profile/`, 'userData');
+                                    await setDoc(userRef, { lastLogin: new Date().toISOString() }, { merge: true });
+                                } else {
+                                    if (initialAuthToken) {
+                                        try {
+                                            await signInWithCustomToken(auth.current, initialAuthToken);
+                                        } catch (error) {
+                                            console.error("Error signing in with custom token:", error);
+                                            await signInAnonymously(auth.current);
+                                        }
+                                    } else {
+                                        await signInAnonymously(auth.current);
+                                    }
+                                }
+                            });
+                        } else {
+                            console.warn("Firebase config not found or is empty. Running without persistence.");
+                            // If no Firebase config, set authReady to true anyway to allow game to proceed without persistence
+                            authReady.current = true;
+                            // Generate a random userId if not authenticated for non-persistent mode
+                            if (!userId) setUserId(crypto.randomUUID());
+                        }
+                    } catch (error) {
+                        console.error("Failed to load Firebase or authenticate:", error);
+                        // Ensure game can still run if Firebase init fails completely
+                        authReady.current = true;
+                        if (!userId) setUserId(crypto.randomUUID());
+                    }
+                };
+
+                initFirebase();
+            }, []);
+
+            const showCustomMessageBox = (msg) => {
+                setMessage(msg);
+                setShowMessageBox(true);
+            };
+
+            const closeCustomMessageBox = () => {
+                setShowMessageBox(false);
+                setMessage('');
+            };
+
+            const handleStartGame = () => {
+                if (!userName.trim()) {
+                    showCustomMessageBox("الرجاء إدخال اسمك لبدء اللعبة.");
+                    return;
+                }
+                setCurrentPage('game');
+                setCurrentQuestionIndex(0);
+                setScore(0);
+                setSelectedOption(null);
+                setFeedback('');
+                setShowExplanation(false);
+                setIsAnswered(false);
+            };
+
+            const handleOptionClick = (option) => {
+                if (isAnswered) return; // Prevent multiple clicks
+
+                setSelectedOption(option);
+                setIsAnswered(true);
+
+                const currentQuestion = shuffledQuestions[currentQuestionIndex];
+                if (option === currentQuestion.answer) {
+                    setScore(score + 10); // Award points for correct answer
+                    setFeedback('إجابة صحيحة!');
+                } else {
+                    setFeedback('إجابة خاطئة.');
+                }
+                setShowExplanation(true);
+            };
+
+            const handleNextQuestion = async () => {
+                if (currentQuestionIndex < shuffledQuestions.length - 1) {
+                    setCurrentQuestionIndex(currentQuestionIndex + 1);
+                    setSelectedOption(null);
+                    setFeedback('');
+                    setShowExplanation(false);
+                    setIsAnswered(false);
+                } else {
+                    // Game over, save score and go to end screen
+                    if (authReady.current && db.current && userId && Object.keys(JSON.parse(window.__firebase_config)).length > 0) {
+                        try {
+                            const scoreCollectionRef = collection(db.current, `artifacts/${window.__app_id}/public/data/scores`);
+                            await addDoc(scoreCollectionRef, {
+                                userId: userId,
+                                userName: userName,
+                                score: score,
+                                timestamp: new Date().toISOString()
+                            });
+                            console.log("Score saved successfully!");
+                        } catch (e) {
+                            console.error("Error adding document: ", e);
+                            showCustomMessageBox("حدث خطأ أثناء حفظ النتيجة.");
+                        }
+                    } else {
+                        console.warn("Firebase not ready or user not authenticated or config missing. Score not saved.");
+                    }
+                    setCurrentPage('end');
+                }
+            };
+
+            const handleRestartGame = () => {
+                setCurrentPage('start');
+                setCurrentQuestionIndex(0);
+                setScore(0);
+                setSelectedOption(null);
+                setFeedback('');
+                setShowExplanation(false);
+                setIsAnswered(false);
+                setUserName(''); // Reset username for a new game
+            };
+
+            const currentQuestion = shuffledQuestions[currentQuestionIndex];
+            const totalLevels = shuffledQuestions.length; // Max levels based on available questions
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-purple-400 via-pink-500 to-red-500 flex items-center justify-center p-4 font-sans text-right">
+                    {showMessageBox && (
+                        <div className="message-box-overlay">
+                            <div className="message-box-content">
+                                <p className="text-lg mb-4 text-gray-800">{message}</p>
+                                <button
+                                    onClick={closeCustomMessageBox}
+                                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-200"
+                                >
+                                    حسناً
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-auto transform transition-all duration-300 sm:p-8 md:max-w-lg lg:max-w-xl">
+                        {/* Added credit line here */}
+                        <p className="text-center text-sm text-gray-500 mb-4">
+                            تم تطوير من قبل <span className="font-semibold text-purple-600">عبدربه العروي للألعاب</span>
+                        </p>
+
+                        <h1 className="text-3xl sm:text-4xl font-bold text-center mb-6 text-purple-700">تحداني – لعبة الأسئلة</h1>
+                        <p className="text-sm text-center mb-6 text-gray-600">
+                            {userId && (
+                                <span className="block mb-2">معرّف المستخدم: <span className="font-mono text-xs break-all">{userId}</span></span>
+                            )}
+                            اختبر معلوماتك وتحدَّ نفسك!
+                        </p>
+
+                        {currentPage === 'start' && (
+                            <div className="text-center">
+                                <p className="text-lg mb-6 text-gray-700">مرحباً بك في تحداني! أدخل اسمك لتبدأ التحدي.</p>
+                                <input
+                                    type="text"
+                                    placeholder="أدخل اسمك"
+                                    value={userName}
+                                    onChange={(e) => setUserName(e.target.value)}
+                                    className="w-full p-3 mb-6 border-2 border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-lg text-gray-800"
+                                    maxLength="20"
+                                />
+                                <button
+                                    onClick={handleStartGame}
+                                    className="w-full bg-purple-600 text-white py-3 rounded-lg text-xl font-semibold hover:bg-purple-700 transition-colors duration-200 shadow-md transform hover:scale-105"
+                                >
+                                    ابدأ اللعبة
+                                </button>
+                            </div>
+                        )}
+
+                        {currentPage === 'game' && (
+                            <div>
+                                <div className="flex justify-between items-center mb-4 text-gray-700">
+                                    <p className="text-lg font-medium">المستوى: {currentQuestionIndex + 1} / {totalLevels}</p>
+                                    <p className="text-lg font-medium">النقاط: {score}</p>
+                                </div>
+
+                                <div className="bg-purple-100 border border-purple-300 rounded-lg p-5 mb-5 shadow-inner">
+                                    <p className="text-xl font-bold text-gray-800 mb-4">{currentQuestion.question}</p>
+                                    <div className="grid grid-cols-1 gap-3">
+                                        {currentQuestion.options.map((option, index) => (
+                                            <button
+                                                key={index}
+                                                onClick={() => handleOptionClick(option)}
+                                                disabled={isAnswered}
+                                                className={`
+                                                    w-full text-right p-3 rounded-md border-2
+                                                    ${isAnswered
+                                                        ? (option === currentQuestion.answer
+                                                            ? 'bg-green-200 border-green-500 text-green-800 font-semibold'
+                                                            : (option === selectedOption ? 'bg-red-200 border-red-500 text-red-800 font-semibold' : 'bg-gray-100 border-gray-300 text-gray-700'))
+                                                        : 'bg-blue-100 border-blue-300 text-blue-800 hover:bg-blue-200 transition-colors duration-200'
+                                                    }
+                                                    ${isAnswered ? 'cursor-not-allowed' : 'cursor-pointer'}
+                                                    text-lg
+                                                `}
+                                            >
+                                                {option}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {isAnswered && (
+                                    <div className="mt-4 p-4 rounded-lg bg-yellow-100 border border-yellow-300 text-yellow-800 shadow-sm text-right">
+                                        <p className="font-semibold text-lg mb-2">{feedback}</p>
+                                        {showExplanation && (
+                                            <p className="text-md">
+                                                <span className="font-bold">الإجابة الصحيحة هي:</span> {currentQuestion.answer}. <br/>
+                                                <span className="font-bold">الشرح:</span> {currentQuestion.explanation}
+                                            </p>
+                                        )}
+                                        <button
+                                            onClick={handleNextQuestion}
+                                            className="mt-5 w-full bg-green-600 text-white py-3 rounded-lg text-xl font-semibold hover:bg-green-700 transition-colors duration-200 shadow-md transform hover:scale-105"
+                                        >
+                                            {currentQuestionIndex < shuffledQuestions.length - 1 ? 'السؤال التالي' : 'إنهاء اللعبة'}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {currentPage === 'end' && (
+                            <div className="text-center">
+                                <h2 className="text-3xl font-bold mb-4 text-purple-700">لقد أكملت التحدي!</h2>
+                                <p className="text-xl mb-4 text-gray-800">
+                                    <span className="font-semibold">{userName}</span>، نقاطك النهائية هي: <span className="text-purple-600 font-bold text-2xl">{score}</span>
+                                </p>
+                                <p className="text-lg mb-6 text-gray-700">نتمنى أن تكون قد استمتعت وتعلمت!</p>
+                                <button
+                                    onClick={handleRestartGame}
+                                    className="w-full bg-blue-600 text-white py-3 rounded-lg text-xl font-semibold hover:bg-blue-700 transition-colors duration-200 shadow-md transform hover:scale-105"
+                                >
+                                    إعادة اللعب
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Render the React App
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
